@@ -1,0 +1,112 @@
+#lang racket
+(require "transaction-io.rkt")
+(require "utils.rkt")
+(require (only-in file/sha1 hex-string->bytes))
+(require "wallet.rkt")
+(require crypto)
+(require crypto/all)
+(require racket/serialize)
+
+; how does this relate to transaction-io...?
+
+(struct transaction
+  (signature from to value inputs outputs)
+  #:prefab)
+
+; We need to use all crypto factories for converting the key between hex<->pk-key
+; why?
+(use-all-factories!)
+
+; func that makes new transaction struct
+(define (make-transaction from to value inputs)
+  (transaction
+   ""
+   from
+   to
+   value
+   inputs
+   '()))
+
+; **DIGEST is another name for HASH VALUE, or the value received by feeding input to a particular hash function
+
+; Return digested signature of a transaction data
+(define (sign-transaction from to value)
+  (let ([privkey (wallet-private-key from)]
+        [pubkey (wallet-public-key from)])
+    ; 'digest/sign' is like calling 'digest' then 'pk-sign-digest'
+    ; 'digest' takes 3 args -> first is the digest FUNCTION, second is the input
+    ; third is optional keyword arg 'key' (not used here)
+    ; append bytes of args, digest w/ sha1, then call 'pk-sign-digest' w/ that as second arg and
+    ; the private key, which we parse from datum using 'datum->pk-key'
+    ; need to better understand 'digest/sign'
+    (bytes->hex-string
+     (digest/sign
+      (datum->pk-key (hex-string->bytes privkey) 'PrivateKeyInfo)
+      'sha1
+      (bytes-append
+       (string->bytes/utf-8 (~a (serialize from)))
+       (string->bytes/utf-8 (~a (serialize to)))
+       (string->bytes/utf-8 (number->string value)))))))
+
+; Processing transaction procedure
+; takes a transaction struct, strips the fields, maps a selector across 'inputs' which is a list of 'transaction-io' structs
+; to get a list of the value of the inputs, then fold that list w' '+ to get a sum
+; 'leftover' is the difference between the sum of our inputs and the 'value', which is what we want to transfer
+; 'new-outputs' is a list of two new transaction-io structs -> one in the amount of 'value', and one for change or leftover
+; then we 
+(define (process-transaction t)
+  (letrec
+      ([inputs (transaction-inputs t)]
+       [outputs (transaction-outputs t)]
+       [value (transaction-value t)]
+       [inputs-sum
+        (foldr + 0 (map (lambda (i) (transaction-io-value i)) inputs))]
+       [leftover (- inputs-sum value)]
+       [new-outputs
+        (list
+         (make-transaction-io value (transaction-to t))
+         (make-transaction-io leftover (transaction-from t)))])
+    (transaction
+     (sign-transaction (transaction-from t)
+                       (transaction-to t)
+                       (transaction-value t))
+     (transaction-from t)
+     (transaction-to t)
+     value
+     inputs
+     (append new-outputs outputs))))
+
+; Checks the signature validity of a transaction
+; select the 'from' field from a transaction, which is simply a key-pair, and select the public key thereof
+; use the transaction signature, converted to bytes, with the appended bytes of transaction fields and transmuted public key
+; to feed to 'digest/verify'
+(define (valid-transaction-signature? t)
+  (let ([pubkey (wallet-public-key (transaction-from t))])
+    (digest/verify
+     (datum->pk-key (hex-string->bytes pubkey) 'SubjectPublicKeyInfo)
+     'sha1
+     (bytes-append
+      (string->bytes/utf-8 (~a (serialize (transaction-from t))))
+      (string->bytes/utf-8 (~a (serialize (transaction-to t))))
+      (string->bytes/utf-8 (number->string (transaction-value t))))
+     (hex-string->bytes (transaction-signature t)))))
+
+; A transaction is valid if...
+(define (valid-transaction? t)
+  (let ([sum-inputs
+         (foldr + 0 (map (lambda (t) (transaction-io-value t))
+                         (transaction-inputs t)))]
+        [sum-outputs
+         (foldr + 0 (map (lambda (t) (transaction-io-value t))
+                         (transaction-outputs t)))])
+    (and
+     ; Its signature is valid
+     (valid-transaction-signature? t)
+     ; All outputs are valid
+     (true-for-all? valid-transaction-io? (transaction-outputs t))
+     ; The sum of the inputs is gte the sum of the outputs
+     (>= sum-inputs sum-outputs))))
+
+(provide (all-from-out "transaction-io.rkt")
+         (struct-out transaction)
+         make-transaction process-transaction valid-transaction?)

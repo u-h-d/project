@@ -1,0 +1,121 @@
+#lang racket
+
+; CHANNEL GRAPH -> a collection of known channels and their connections
+; CHANNEL -> unbroadcast transaction between two nodes, know capacity, but not always the directional liquidity
+; NODE -> unique address, and other stuff?
+
+; update can be node_announcement, channel_announcement, or channel_update (for now, could have other messages in future)
+
+; what about a macro that auto-defines something like this where it wraps all funcs so they can be interchanged?
+(define channel_graph
+  (let ((graph '()))
+    (lambda (cmd)
+      (define (return)                              
+        graph)
+      (define (update data)
+        (set! graph (update-graph data)))
+      (define (find data)
+        (define source (first data))
+        (define dest (second data))
+        (define amt (third data))
+        (return-path source dest amt graph))
+      (let ((tag (first cmd))
+            (data (second cmd)))
+        (printf "Tag is ~a\nData is ~a\n" tag data)
+        (case tag
+          ((return) (return))
+          ((find) (find cmd))
+          ((iterate) (update data))
+          (else (error "Invalid command")))))))
+
+; might eventually need a graph representation that utilizes hash tables for speed...
+(define t-graph
+  '((a (b 10) (d 5) (e 20))
+    (b (a 10) (c 15))
+    (c (b 15) (d 30) (e 10))
+    (d (a 5) (c 30) (f 5) (j 12))
+    (e (a 20) (c 10) (h 7))
+    (f (d 5) (i 3))
+    (g)
+    (h (e 7) (j 12))
+    (i (f 3))
+    (j (h 12))))
+
+(define l-g
+  '((a (b 10) (d 5))
+    (b (a 10) (c 8))
+    (c (b 8) (d 12))
+    (d (c 12))))
+
+; finds all possible paths from source to dest ->
+(define (return-path source dest amt graph)
+
+  (define (get-partners node)
+    (let ((node-entry (assoc node graph)))
+      ;(printf "Node is ~a\nEntry is ~a\n" node node-entry)
+      (map (lambda (pair)
+             (first pair))
+           (cdr (assoc node graph)))))
+  
+  ; not getting ALL paths...
+  ; think 'checked' is doing it...
+  (define find-path
+    
+      (lambda (current-node checked)
+        ;(printf "Starting with ~a\nChecked is ~a\n" current-node checked)
+        (cond
+          ((member current-node checked)
+           ;(println "Already visited, aborting")
+           #f)
+          ((symbol=? current-node dest)
+           ;(println `(,current-node))
+           `((,current-node)))
+          (else
+           (define nxt-checked (cons current-node checked))
+           (define possible-paths (get-partners current-node))
+           (map (lambda (returned-path)
+                  ;(printf "Returned path is ~a\n" returned-path)
+                  (cons current-node returned-path))
+                (search-all possible-paths nxt-checked))))))
+  
+  ; helper to start search on each of a list of nodes
+  (define (search-all lo-nodes checked)
+    ;(displayln "search-all ...")
+    (define (search-iter nodes-left acc-paths)
+      (if (null? nodes-left)
+          (begin
+            ;(printf "acc-paths is ~a\n" acc-paths)
+            acc-paths)
+          (begin
+            (let ((path? (find-path (car nodes-left) checked))) 
+              (if path?
+                  (search-iter (cdr nodes-left) (append path? acc-paths))
+                  (search-iter (cdr nodes-left) acc-paths))))))
+    (search-iter lo-nodes '()))
+
+  ; initiate
+  (find-path source '()))
+
+(define (update-graph)
+  0)
+
+
+(return-path 'a 'c 10 t-graph)
+(return-path 'i 'j 10 t-graph)
+(return-path 'd 'e 10 t-graph)
+(return-path 'a 'g 10 t-graph)
+(return-path 'c 'b 10 t-graph)
+
+(define (test)
+
+  (let ((x 0))
+    (lambda ()
+      (set! x (+ 1 x))
+      x)))
+
+  
+
+
+ 
+
+    

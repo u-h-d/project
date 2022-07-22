@@ -1,0 +1,230 @@
+#lang racket
+
+(require racket/gui/base)
+
+
+; Create a dialog
+(define dialog (instantiate dialog% ("Example")))
+ 
+; Add a text field to the dialog
+(new text-field% [parent dialog] [label "Your name"])
+ 
+; Add a horizontal panel to the dialog, with centering for buttons
+(define panel (new horizontal-panel% [parent dialog]
+                                     [alignment '(center center)]))
+ 
+; Add Cancel and Ok buttons to the horizontal panel
+(new button% [parent panel] [label "Cancel"])
+(new button% [parent panel] [label "Ok"])
+(when (system-position-ok-before-cancel?)
+  (send panel change-children reverse))
+ 
+; Show the dialog
+;(send dialog show #t)
+
+(define d2 (new frame% (label "Test")))
+(define zcan (new canvas% (parent d2)))
+(define zdc (send zcan get-dc))
+(send zdc set-brush "blue" 'solid)
+
+
+
+(define pane (new vertical-pane%
+                  (parent d2)
+                  (spacing 20)
+                  (vert-margin 5)
+                  (horiz-margin 5)
+                  (stretchable-width #f)
+                  (stretchable-height #f)))
+
+; make a bunch of sub-panes
+(define (mk-panes&dc n parent)
+  
+  (define dcs
+    (for/list ((i n))
+      (send (new canvas% (parent (new pane% (parent parent) (alignment '(center center))
+                                      (min-width 50) (min-height 50)))
+                 (paint-callback
+                  (lambda (canvas dc)
+                    (let-values (((width height) (send dc get-size)))
+                      (send dc set-brush "red" 'solid)
+                      (send dc draw-rectangle 0 0 (- width 0) (- height 0))))))
+            get-dc)))
+  
+  dcs)
+
+(define dcs
+  (mk-panes&dc 10 pane))
+
+#|
+; this will be a list of lists (for each child, create a new sub-panes and get dc thereof, and return a list of them)
+; so each sublist will be a list of dc's
+(define ch
+  (for/list ((child (send pane get-children)))
+    (mk-panes&dc 10 child)))
+
+(define ch-dc
+  (for* ((set-dcs ch)
+         (dc set-dcs))
+    (send
+     dc
+     draw-rectangle 0 0 
+     get-dc)))
+|#
+
+(define (paint-blue dcs)
+  (for ((dc dcs))
+    (send dc set-brush "blue" 'solid)))
+
+(define (draw-rects lo-dc)
+  (for ((dc lo-dc))
+    (let-values (((width height) (send dc get-size)))
+      (send dc set-brush "blue" 'solid)
+      (send dc draw-rectangle 5 5 (- width 5) (- height 5)))))
+
+(define bm (make-bitmap 50 50))
+(define bmc (new bitmap-dc% [bitmap bm]))
+(define nb (new brush% (color "blue")))
+(send bmc set-brush nb)
+(send bmc draw-rectangle 5 5 45 45)
+
+(define nf (new frame% (label "hello")))
+
+(define square
+  (let ((i 1))
+    (lambda (canvas dc)
+      (send dc draw-rectangle (+ 0 (* i 2)) 0 50 50)
+      (if (> i 500)
+          (set! i 1)
+          (set! i (+ 1 i))
+      #;(sleep 0.1)))))
+
+(define can (new canvas% (parent nf)
+                 (paint-callback square)))
+                  
+(define n-dc (send can get-dc))
+(send n-dc set-brush nb)
+
+;(send d2 show #t)
+(send nf show #t)
+
+
+(define (go)
+  (define-values (w h) (send n-dc get-size))
+  (define mw (/ w 2))
+  (define mh (/ h 2))
+  (printf "w: ~a\nh: ~a\n" w h)
+  #;(send n-dc set-origin (/ w 2) (/ h 2))
+  (for ((i 4))
+    (send n-dc translate 100 0)
+    (send n-dc draw-bitmap bm mw mh)
+    (send n-dc translate -200 0)
+    (send n-dc draw-bitmap bm mw mh)
+    (send n-dc translate 100 0)
+    (send n-dc rotate (/ 6.28 4))))
+    
+             
+(define (d (x 5) (y 5))
+  (let*-values (((w h) (send n-dc get-size))
+                ((mw mh) (values (/ w 2) (/ h 2))))
+    (send n-dc draw-rectangle (- mw 25) (- mh 25) 50 50)))
+(define (c)
+  (send n-dc clear))
+(define (z)
+  (send n-dc draw-rectangle 15 15 50 50))
+
+(define seq
+  (let ((x 1))
+    (lambda ()
+      (if (<= x 8)
+          (begin0
+            x
+            (set! x (+ 1 x)))
+          (begin
+            (set! x 2)
+            1)))))
+
+(define (set-o)
+  (let-values (((w h) (send n-dc get-size)))
+    (send n-dc set-origin (/ w 2) (/ h 2))))
+
+(define (dd)
+  (let*-values (((w h) (send n-dc get-size))
+                ((mw mh) (values (/ w 2) (/ h 2))))
+    (send n-dc translate 100 0)
+    (send n-dc draw-rectangle (- mw 25) (- mh 25) 50 50)
+    (send n-dc translate -200 0)
+    (send n-dc draw-rectangle (- mw 25) (- mh 25) 50 50)
+    (send n-dc translate 100 0)
+    (send n-dc rotate (/ 6.28 2))
+    (send n-dc translate 100 0)
+    (send n-dc draw-rectangle (- mw 25) (- mh 25) 50 50)))
+
+(define dt (send n-dc get-transformation))
+
+(define tester
+  (let ((i 1))
+    (lambda ()
+      (sleep 0.01)
+      (c);(send can refresh) this messes it up (draws one square) why?
+      (send n-dc draw-rectangle (+ 0 (* i 2)) 0 50 50)
+      (if (> i 500)
+          (set! i 1)
+          (set! i (+ 1 i))))))
+
+(define tester2
+  (let ((i 1))
+    (lambda (dc)
+      ;(sleep 0.01)
+      ;(c);(send can refresh) this messes it up (draws one square) why?
+      (send dc draw-rectangle (+ 0 (* i 2)) 200 50 50)
+      (send n-dc draw-rectangle (+ 0 (* i 2)) 0 50 50)
+      (send n-dc draw-rectangle (+ 0 (* i 2)) 400 50 50)
+      (send n-dc draw-rectangle (+ 0 (* i 2)) 600 50 50)
+      (if (> i 500)
+          (set! i 1)
+          (set! i (+ 1 i))))))
+
+(define tester3
+  (let ((i 1))
+    (lambda (dc)
+      (sleep 0.01)
+      ;(c);(send can refresh) this messes it up (draws one square) why?
+      (send can refresh-now
+            (lambda (dc)
+              (send dc draw-bitmap bm (+ 0 (* i 2)) 0))
+              #:flush? #t)
+      (if (> i 500)
+          (set! i 1)
+          (set! i (+ 1 i))))))
+
+(define (f)
+  (send can refresh))
+
+#; ; this works to make a row of squares, but how to erase behind?
+; but won't work a second time...?
+(for ((i 100)
+       )
+    (queue-callback
+     tester))
+
+; is drawing operation than drawing a bitmap?
+(define (ani)
+  (for ((i 1000))
+    (queue-callback
+     tester)))
+
+(define (ani2)
+  (for ((i 1000))
+    (sleep 0.01)
+    (send can refresh-now
+          tester2 #:flush? #t)))
+
+(define (ani3)
+  (for ((i 1000))
+    (tester3 n-dc)))
+
+; catch a continuation at the top of a call stack (top of machine/etc)
+; and hand off to be returned after a certain draw function is completed?
+  
+  
