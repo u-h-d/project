@@ -1,0 +1,124 @@
+#lang racket
+
+(require racket/gui)
+(require (for-syntax syntax/parse))
+(require (for-syntax racket/syntax))
+
+; we can either use a closure to manage 'u-space' referencing (ie might calc every time),
+; OR, have the entity closure take a msg to update 'u-space' (re-calc only when told)
+
+; after initialization, can spaces have a simplified derivation ->
+; points are just a percentage of top-level-space x or y?
+; w and h would be percentage of x0 and y0?
+
+; need way to install a path/animation and then wait for it to return #t after completing
+; before continuing w/ program execution
+
+; who manages drawing operations? entity or space? or both?
+; entity contains info on what to draw and makes the requests
+; but who manages sleep times and completion confirmations?
+; entity may have to handle draw-path requests from sub-entities to help
+; ferry an animation of data from one component to another
+; consider ways to animate/represent the act of "building" a result w/in an entity ->
+; ie, you concat data to an ever-growing data structure, or maybe you have an
+; "arrow" animation that indicates the translation of data from one form to another
+; or an animation that represents the destructuring of a data object
+
+#;
+(define (mk-spaces super-space)
+  
+  (let ((u-space super-space))
+
+    (lambda (layout)
+      ; take a layout and install it in entities (closures)
+      ; the sub-spaces assigned to each entity can look to 'u-space' to derive
+      ; our return will be a data structure of entity closures
+      (install-layout layout))))
+
+(define add3 
+  (lambda (x)
+    (+ 3 x)))
+(define double
+  (lambda (x)
+    (* 2 x)))
+(define sum
+  (lambda (x y)
+    (+ x y)))
+
+
+; sample entity
+(define ent1
+  (let* ((attr (make-hash `((sum ,sum) (double ,double) (add3 ,add3)))) 
+         (controller
+          (let ((sum (car (hash-ref attr 'sum)))
+                (double (car (hash-ref attr 'double)))
+                (add3 (car (hash-ref attr 'add3))))
+            (lambda (x)
+              (sum
+               (double
+                (add3 x))
+               x)))))
+    (lambda (cmd)
+      (controller cmd))))
+
+(define z
+  (make-hash `((sum ,sum) (double ,double) (add3 ,add3))))
+
+; another sample ->
+; here, sub-entities would reference a global closure value for super-space
+; have entity hold a sub-space value it operates on/with
+; here we let top-level entity hold as components the entities made w/in its closure
+#;(define ent-mkr
+  
+  (let ((super-space #f)
+        (dc #f)
+        (subs '()))
+
+    (define (mk-sub data)
+
+      (let ((controller #f)
+            (components (make-hash))
+            (attr (make-hash))
+            (output-mgr (make-hash)))
+
+        (lambda (cmd)
+          (output-mgr
+           (controller cmd))
+            
+    
+    (lambda (msg)
+      
+      (case (car msg)
+        ((resize)
+         (set! super-space (cadr msg)))
+        ((mk)
+         (set! subs (cons  (mk-sub (cadr msg)) subs)))
+        (else
+         'ERROR))
+      0))))))
+
+;; need a more generic entity maker so we can describe meta-level components ->
+(define-syntax (meta-e-mkr stx)
+
+  (syntax-parse stx
+    ((_meta-e-mkr (name (comp ...)))
+     (with-syntax ((new-id (format-id #'name "~a-mkr" (syntax-e #'name)))) 
+     
+     #'(define-syntax (new-id stx)
+
+         (syntax-parse stx
+           ((_new-id (sub-name (val (... ...))))
+            (with-syntax ((sub-id (format-id #'sub-name "~a-~a" (syntax-e #'name) (syntax-e #'sub-name))) 
+                          (n-comp #'comp ...))
+
+              #'(define sub-id
+                  (let ((n-comp val) (... ...)) 
+                    (lambda (cmd)
+                      "success")))))))))))
+
+                  
+(define (tester x)
+  (sum
+   (double
+    (add3 x))
+   x))

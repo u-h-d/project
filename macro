@@ -1,0 +1,200 @@
+#lang racket
+
+; The source form passed to a macro transformer represents an expression in which its identifier is used in an application position
+; , or it represents the identifier by itself if it is used as an expression position and not in an application position.
+
+(require (for-syntax syntax/parse))
+(require racket/syntax)
+
+(define-syntax (mylet stx)
+    (syntax-parse stx
+      [(_ ([var-id rhs-expr] ...) body ...+)
+       #'((lambda (var-id ...) body ...) rhs-expr ...)]))
+
+(define-syntax (hello stx)
+    (syntax-case stx ()
+      [(_ name place)
+       (with-syntax ([print-name #'(printf "~a\n" 'name)]
+                     [print-place #'(printf "~a\n" 'place)])
+         #'(begin
+             (define (name times)
+               (printf "Hello\n")
+               (for ([i (in-range 0 times)])
+                    print-name))
+             (define (place times)
+               (printf "From\n")
+               (for ([i (in-range 0 times)])
+                    print-place))))]))
+
+(define-syntax (backwards stx)
+    (syntax-parse stx
+      [(backwards form ...)
+       (define rev-forms
+         ; take pattern var 'form ...' and stick it in parentheses and convert to syntax so its all one cohesive syntax object
+         ; then we have to convert said syntax into a list so we can operate on it w/ reverse...
+         (reverse (syntax->list (syntax (form ...)))))
+       ; then we match the reversed list of forms to a pattern to get pattern vars bound
+       ; REMMEBER, if RHS of a 'with-syntax' binding clause is not explicitly syntax object, it will be converted into one automatically
+       (with-syntax ([(rev-form ...) rev-forms])
+         ; then we stick those pattern vars inside (begin <pattern vars>), and convert that to syntax so it can be executed
+         ; REMEMBER, pattern vars are id's for SYNTAX
+         (syntax
+          (begin rev-form ...)))]
+      [_ (raise-syntax-error
+          'backwards
+          "expected (backwards form ...), got: "
+          stx)]))
+
+(begin-for-syntax
+    (define (backwards-transformer stx)
+      ;(displayln "Here we go")
+      (with-syntax ([(backwards2 form ...) stx])
+        (define rev-forms
+          (reverse (syntax->list (syntax (form ...)))))
+        ;(displayln (syntax? (syntax rev-forms)))
+        (displayln (syntax->datum (syntax (form ...))))
+        (displayln rev-forms)
+        (with-syntax ([(rev-form ...) rev-forms])
+          (syntax
+           (begin rev-form ...))))))
+
+; BE WARY OF DIFFERENCE BETWEEN (define-syntax id id) and (define-syntax (id stx))
+(define-syntax backwards2 backwards-transformer)
+
+; REMEMBER, the WHOLE expression '(id form)' is taken in as syntax object when 'id' is bound w/ 'define-syntax'
+(define-syntax self-as-string
+    (lambda (stx)
+      (datum->syntax stx
+                     (format "~s" (syntax->datum stx))))) ; so, 'stx' is still syntax here because we haven't deconstructed w/ a parser like 'syntax-parse' or 'with-syntax'
+
+; HOW DO WE PASS THE VALUE OF AN ID INTO A MACRO, NOT JUST THE QUOTED ID?
+; REMEMBER, we are rewriting the code.. the id's will be as such until evaluated in the calling environment...
+
+; this works, but probably not useful...
+(begin-for-syntax
+  (define d
+    '(+ 1 2)))
+
+#|
+; so what is a pattern variable... is it syntax or not?
+(define-syntax sas
+  (lambda (stx)
+    (with-syntax*
+        (((sas body) stx)
+         ((one two three) body))
+      (displayln (eval (syntax body)))
+      (displayln (syntax body))
+      (displayln (syntax (list 3 2 1)))
+      (syntax
+       (format "~s" (syntax->datum (syntax (eval (syntax body))))))))) ; here we have to convert to syntax FIRST, bc a pattern variable is apparently not a syntax object
+|#
+
+(with-syntax* ([((sym str) ...)
+                  (syntax ((a "11") (b "22") (c "33")))]
+                 [(num ...)
+                  (map string->number
+                       (syntax->datum
+                        (syntax (str ...))))])
+      (syntax
+       (list (list sym num) ...)))
+
+(define-syntax sas2
+  (lambda (stx)
+    (with-syntax
+        (((_ body) stx))
+      (displayln (syntax->datum (syntax body)))
+      (displayln (eval (syntax body))) ; REMEMBER, some functions are not available at EXPANSION, but I think we can get them there...
+      (with-syntax
+          ; so a syntax pattern does not match parentheses...?
+          (((one two three) #'body))
+        (displayln (syntax->datum (syntax (list one two three))))
+        (displayln (eval (syntax (list three two one))))
+      (syntax
+       (format "~s" (syntax->datum (syntax body))))))))
+
+(define-syntax (fun stx)
+  (syntax-parse stx
+    ((_ term ...)
+     (let* ((lov (syntax (term ...)))
+            (r-lov (reverse (syntax->list lov))))
+       (displayln lov)
+       ; it seems like if we operate on a pattern var (like above), we have to use another nested parser to match that result to a NEW pattern var
+       ; UNLESS (see below), we convert that to a syntax object to insert into template to be returned
+       ; w/out that it says the identifier is unkown...
+       (with-syntax
+           (((rev-l ...) r-lov))
+         #'(list rev-l ...))))))
+       
+
+
+#|
+(begin-for-syntax
+  (define (transform stx)
+    (syntax-parse stx
+        ((lst)
+         (define rev-lst
+           (reverse (syntax->list lst))) 
+           #'lst))))
+|#
+  
+(define-syntax rotate
+  (syntax-rules ()
+    [(rotate a c ...)
+     (shift-to (c ... a) (a c ...))]))
+ 
+(define-syntax shift-to
+  (syntax-rules ()
+    [(shift-to (from0 from ...) (to0 to ...))
+     (let ([tmp from0])
+       (set! to from) ...
+       (set! to0 tmp))]))
+
+(define-syntax (swap stx)
+  (displayln stx)
+  (syntax-case stx ()
+    [(swap x y) #'(let ([tmp x])
+                    (set! x y)
+                    (set! y tmp))]))
+
+(define-syntax (go stx)
+  (syntax-parse stx
+    ((_ body)
+     (displayln (syntax->datum #'body))
+     (with-syntax
+         (((term ...) #'body)) 
+       #'(term ...)))))
+
+; why don't we need to 'begin-with-syntax' the 'capture-output-fun' procedure...?
+; ie, how is it available when we call 'capture-output'
+; is 'define-syntax-rule' different?
+(define-syntax-rule (capture-output e)
+  (capture-output-fun (lambda () e)))
+ 
+; capture-output-fun : (-> Any) -> String
+(define (capture-output-fun thunk)
+  (let ([out (open-output-string)])
+    (parameterize ((current-output-port out))
+      (thunk)
+      (get-output-string out))))
+
+
+(define-syntax (play stx)
+  (syntax-parse stx
+    ((_ name fields)
+     (displayln (syntax->datum #'fields))
+     #'(name fields))))
+
+; can we interject functions that operate on the VALUE of a pattern variable before we assemble the final syntax object?
+; DON'T FORGET -> in our S-expression list structure of datum/syntax, a quoted list has 'quote' at the front of the list
+; AND that 'quote' will pattern match...
+(define-syntax (mk-struct stx)
+  (syntax-parse stx
+    ((_ lst)
+     (displayln (syntax->datum #'lst))
+     (with-syntax ; how to star this?  tried and threw error
+         (((_ lst2) #'lst))
+       (with-syntax
+           (((name fields ...) #'lst2))
+         (displayln (syntax->datum #'name))
+         (displayln (syntax->datum #'(fields ...)))
+         #'(struct name (fields ...)))))))

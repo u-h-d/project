@@ -1,0 +1,70 @@
+#lang racket
+
+; BITCOIN TRANSACTION and related
+
+(require sha)
+
+
+; transaction is utxo set -> utxo set (or a collection of tx ie block)
+
+(struct single ((x #:mutable)))
+
+; tx input is just a REFERENCE to a utxo
+(struct transaction (locktime inputs outputs))
+(struct input (reference unlock-script))
+(struct output (amount lock-script))
+
+; reference is SYMBOL (we will denote wallets w/ identifiers for now)
+; a wallet will just be a NUM (balance)
+
+; need SIGHASH flags...
+
+; tx data is '(inputs (amt lock) (amt lock))
+
+(define (mk-initial-utxo-set lo-wallets)
+  (for/list ((wallet lo-wallets))
+    (define amt (random 10000))
+    (define lock-script (wallet 'pub))
+    `(,lock-script ,amt)))
+
+
+(define (mk-wallet)
+  (let* ((private-key (random 1000000))
+         (public-key (sha256 (string->bytes/utf-8 (number->string private-key))))
+         (my-utxo #f))
+    (lambda (req [data #f])
+      (case req
+        ((priv)  
+         private-key)
+        ((pub)
+         public-key)
+        ((update)
+         (set! my-utxo (get-my-utxo public-key UTXO_SET)))
+        ((dump)
+         (printf "~a\n~a\n~a\n" private-key (bytes->list public-key) (list (bytes->list (caar my-utxo)) (cdar my-utxo))))
+        (else (error "Invalid wallet command"))))))
+        
+    
+(define (get-my-utxo address utxo-set)
+  (filter
+   (lambda (x)
+     (equal? (first x) address))
+   utxo-set))
+
+(define z
+  (mk-wallet))
+(define j
+  (mk-wallet))
+(define b
+  (mk-wallet))
+(define g
+  (mk-wallet))
+
+(define UTXO_SET
+  (mk-initial-utxo-set (list z j b g)))
+
+    
+
+          
+
+
