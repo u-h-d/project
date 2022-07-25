@@ -32,10 +32,9 @@
 (define-syntax (mk-entity stx)
 
   (syntax-parse stx
-    
     ((_mk-entity name components)
      ; mk new id's for each component/sub-component and assoc w/ value
-     (with-syntax (((ids vals) ...  #'components)) 
+     (with-syntax (((ids vals) ...  #'components))
      
        #`(begin
            (define ht (make-hash)) ; not sure this will work...
