@@ -34,8 +34,8 @@
              (name '(get-all)))
            (define-syntax-rule (get-id id)
              (name '(get id)))
-           (define-syntax-rule (run-id)
-             (name '(run))))))))
+           (define-syntax-rule (run-id val)
+             (name '(run val))))))))
      
 
      
@@ -71,11 +71,23 @@
                
                
                (hash-set! components 'ids vals) ...
+               ; helper procs
+               #;
+               (define-syntax (new-contr stx)
+                 (syntax-parse stx
+                   ((_new-contr body-expr)
+                    (with-syntax ((body-syntax (datum->syntax #f #'body-expr)))
+                      #'(lambda (cmd)
+                          body-syntax)))))
+                   
                
                ; core dispatch 
                (lambda (cmd)
                  (case (car cmd)
-                   ((set) (hash-set! components (second cmd) (third cmd)))
+                   ((set) (if (eq? 'controller (second cmd))
+                              (hash-set! components (second cmd) (third cmd))
+                              ;(new-contr (third cmd))
+                              (hash-set! components (second cmd) (third cmd))))
                    ((get) (hash-ref components (second cmd)))
                    ((get-all) (comp-print components))
                    
@@ -92,6 +104,18 @@
 
 (mk-entity test ((a 4) (b 3)))
 
+#;; won't work bc not in scope of 'components'
+(define c1
+  (lambda (cmd)
+    (+
+     (hash-ref components 'a)
+     (hash-ref components 'b))))
 
+(define-syntax (defcontr stx)
 
-                 
+  (syntax-parse stx
+    ((_defcontr name (comps ...) body)
+     (with-syntax ((cmd-id (format-id #'name "~a" (datum->syntax #'name 'cmd))))
+     #'(define (name cmd-id comps ...)
+         body)))))
+     

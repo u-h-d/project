@@ -26,6 +26,7 @@
 
 
 ;; if we have an entity ->
+#;
 (let ((stuff '())
       (more-stuff '()))
 

@@ -81,3 +81,32 @@
      'hello)
    (lambda ()
      'here)))
+
+(define f-lst
+  '(lambda (cmd)
+     (+ i
+        l)))
+
+(define-syntax (wkshp stx)
+  (syntax-parse stx
+    ((_wkshp name body ((id val) ...))
+     (with-syntax ((n-body (datum->syntax #'name (syntax->datum #'body))))
+     #'(begin
+         (define name
+           (let ((id val) ...)
+             n-body)))))))
+
+(define (t-contr cmd lst-comp)
+  (let ((p1 (first lst-comp))
+        (p2 (second lst-comp)))
+    (p2 (p1 cmd))))
+
+
+(define-syntax (n-contr stx)
+  (syntax-parse stx
+    ((_n-contr b-expr)
+     (with-syntax ((bsyn (datum->syntax #f #'b-expr)))
+       #'(lambda (cmd)
+           (eval bsyn))))))
+
+                       
