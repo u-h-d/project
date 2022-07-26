@@ -30,3 +30,54 @@
                 #'ident))))))))
   
 (t2 ((a 10) (b 4)))
+
+(define z 1)
+(define y 2)
+
+(define-syntax (t3 stx)
+  (syntax-parse stx
+    ((_t3 pairs)
+     (with-syntax ((((id val) ...) #'pairs))
+       #'(begin
+           (displayln 'id) ...
+           (displayln 'val) ...)))))
+
+
+(define ht
+  (make-hash
+   (list '(controller . #f)
+         `(input-hooks . ,(lambda (cmd)
+                            'hello)))))
+
+(define (g)
+  (define b 4)
+  (lambda (val)
+    (printf "Before: ~a" b)
+    (set! b val)
+    (printf "After: ~a" b)))
+
+(define h
+  (g))
+
+(define p
+  '(sym . 4))
+
+
+(define-syntax (mk-n stx)
+  (syntax-parse stx
+    ((_mk-n id)
+     #'(define id 4))))
+
+    
+(define-syntax (t4 stx)
+  (syntax-parse stx
+    ((_t4 id)
+     #'(mk-n id))))
+
+(define-values
+  (s x)
+  (values
+   (lambda ()
+     'hello)
+   (lambda ()
+     'here)))

@@ -1,6 +1,6 @@
 #lang racket
 
-(require (for-syntax syntax/parse))
+(require (for-syntax syntax/parse racket/syntax))
 
 ;; transformers to make entities ->
 
@@ -21,41 +21,76 @@
 (define-syntax (mk-set/get stx)
   
   (syntax-parse stx
-    ((_mk-set/get id ht)
+    ((_mk-set/get name)
+     (with-syntax ((set-id (format-id #'name "~a-set" (syntax-e #'name)))
+                   (get-id (format-id #'name "~a-get" (syntax-e #'name)))
+                   (get-all-id (format-id #'name "~a-get-all" (syntax-e #'name)))
+                   (run-id (format-id #'name "~a-run" (syntax-e #'name))))
+
+       #'(begin
+           (define-syntax-rule (set-id id val)
+             (name `(set id ,val)))
+           (define-syntax-rule (get-all-id)
+             (name '(get-all)))
+           (define-syntax-rule (get-id id)
+             (name '(get id)))
+           (define-syntax-rule (run-id)
+             (name '(run))))))))
      
-     #'(begin
-         (define-syntax-rule (eset id val)
-           (hash-set! ht 'id val))
-         (define-syntax-rule (eget id)
-           (hash-ref ht 'id))))))
-              
+
+     
+; run-hook procs
+; we assume each hook acts independently..
+(define (run-hooks lst-hooks val)
+  (for ((hook lst-hooks))
+    (hook val)))
+(define (comp-print comp-hash)
+  comp-hash)
+
+;; initiate a plain entity
 (define-syntax (mk-entity stx)
 
   (syntax-parse stx
     
-    ((_mk-entity name components)
+    ((_mk-entity name comp-pairs)
      ; mk new id's for each component/sub-component and assoc w/ value
-     (with-syntax (((ids vals) ...  #'components)) 
+     (with-syntax ((((ids vals) ...)  #'comp-pairs)
+                   (hidden-name (format-id #'name "~a" (gensym))))
      
-       #`(begin
-           (define ht (make-hash)) ; not sure this will work...
+       #'(begin
+           ; helper macros
+           (mk-set/get name)
            ; define our entity as a closure
            (define name
-             (let ((components ht))) ; this is where we have to insert init args if any
-             ; can i stick the set/get here? 
-             (lambda (cmd)
-               (define input (translate cmd)) ; this might be where translation layer comes in
-               (define output
-                 ((hash-ref components 'controller) cmd)) ; want to run on naked 'cmd' bc that is the actual format expecte by program
-               (run-output-hooks output))) ; could have his be a form that has as its return just 'output'
+             (let ((components (make-hash `((controller .
+                                            ,(lambda (input)
+                                              'controller))
+                                           (input-hooks . ())
+                                           (output-hooks . ()))))) ; this is where we have to insert init args if any
 
-           #,@(map mk-set/get
-                   ids))))))
-       
-           
+               
+               
+               (hash-set! components 'ids vals) ...
+               
+               ; core dispatch 
+               (lambda (cmd)
+                 (case (car cmd)
+                   ((set) (hash-set! components (second cmd) (third cmd)))
+                   ((get) (hash-ref components (second cmd)))
+                   ((get-all) (comp-print components))
+                   
+                   ; main function
+                   (else
+                    (begin
+                      (displayln "here we are")
+                      (run-hooks (hash-ref components 'input-hooks) cmd) ; this might be where translation layer comes in
+                      (define output
+                        ((hash-ref components 'controller) cmd)) ; want to run on naked 'cmd' bc that is the actual format expecte by program
+                      (run-hooks (hash-ref components 'output-hooks) output))))))))))))
+     
 
 
-
+(mk-entity test ((a 4) (b 3)))
 
 
 

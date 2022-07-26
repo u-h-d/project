@@ -1,0 +1,7 @@
+* What do we want to do w/ a ENTITY?
+- look at all its components
+- change its components
+** Run it
+- capture continuation at that point
+- capture input/output
+- isolate?
