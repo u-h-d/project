@@ -1,0 +1,21 @@
+
+BIG-ENT
+	
+	>input-hooks-example<
+	
+		|components|
+			SUB-ENT1
+
+				>input-hooks2<
+
+					|comp2|
+						SUB-ENTz
+
+					!contrz!
+					
+			SUB-ENT2
+			SUB-ENT3
+
+		!controller!
+			cENT1
+			cENT2

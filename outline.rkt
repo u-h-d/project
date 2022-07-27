@@ -18,6 +18,10 @@
 ;; so, do we ahve to specify that we have input/output capture? or can that be optional?
 ; define our setters/getters
 ; called in creation of entity with current component hash
+
+;; !!CURRENT PROBLEM: having a way to compose controllers independently using the names of components ->
+;; ie, scope of identifiers is a challenge
+
 (define-syntax (mk-set/get stx)
   
   (syntax-parse stx
@@ -60,6 +64,7 @@
        #'(begin
            ; helper macros
            (mk-set/get name)
+           #;(mk-wkshp name)
            ; define our entity as a closure
            (define name
              (let ((components (make-hash `((controller .
@@ -102,7 +107,14 @@
      
 
 
+
+
 (mk-entity test ((a 4) (b 3)))
+
+; SO, could there be some hooks that come from above (maybe a wrapping drawing/time mgr) or from
+; outside (logging data)
+
+
 
 #;; won't work bc not in scope of 'components'
 (define c1
