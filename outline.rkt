@@ -40,7 +40,48 @@
              (name '(get id)))
            (define-syntax-rule (run-id val)
              (name '(run val))))))))
+
+; helper functions
+(define (get-bindings ht)
+  (define ids
+    (for/list ((entry (hash->list ht)))
+      (car entry)))
+  (define vals
+    (for/list ((entry (hash->list ht)))
+      (cdr entry)))
+  (values
+   ids
+   vals))
+
+
+(define-syntax (mk-wkshp stx)
+  (syntax-parse stx
+    ((_mk-wkshp name)
      
+     (with-syntax ((get-all-id (format-id #'name "~a-get-all" (syntax-e #'name)))
+                   (wkshp-id (format-id #'name "~a-wkshp" (syntax-e #'name))))
+       
+       #'(define-syntax (wkshp-id stx)
+           (syntax-parse stx
+             ((_wkshp-id expression)
+            
+            #'(let-values (((component-ids vals) (get-bindings (get-all-id)))) ; get a list of ids, list of assoc vals      
+                (match (list component-ids vals)
+                  (((id ...) (val ...))
+                   (call-with-env expression (id (... ...)) (val (... ...)))))))))))))
+
+(define-syntax (call-with-env stx)
+  (syntax-parse stx
+    ((_call-with-env expression ids vals)
+    
+     (with-syntax (((n-ids ...)
+                    (map (lambda (datum)
+                           (format-id #'expression "~a" datum))
+                         #'ids))
+                   ((n-vals ...) #'vals))
+       
+       #'(let ((n-ids n-vals) ...)
+           expression)))))
 
      
 ; run-hook procs
@@ -64,7 +105,7 @@
        #'(begin
            ; helper macros
            (mk-set/get name)
-           #;(mk-wkshp name)
+           (mk-wkshp name)
            ; define our entity as a closure
            (define name
              (let ((components (make-hash `((controller .

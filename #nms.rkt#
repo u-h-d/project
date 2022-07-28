@@ -325,6 +325,7 @@
      (with-syntax (((nnids ...) n-ids))
        #'(begin
            (displayln 'nnids) ...)))))
+; can use syntax-parameter to get at values??
 
 (define (fn lst)
   lst)
