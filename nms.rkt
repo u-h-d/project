@@ -325,6 +325,52 @@
      (with-syntax (((nnids ...) n-ids))
        #'(begin
            (displayln 'nnids) ...)))))
+; can use syntax-parameter to get at values??
 
 (define (fn lst)
   lst)
+
+
+(module test racket
+  (require (for-syntax syntax/parse racket/syntax))
+
+  (provide mct
+           t-func
+           get-ids)
+
+  (define (t-func)
+    'this-worked)
+  (define (get-ids)
+    '(a b c))
+  (define-syntax (mct stx)
+    (syntax-parse stx
+      ((_mct id)
+       #''id))))
+
+(require 'test
+         (for-syntax 'test))
+
+
+(define-syntax (mk-env stx)
+  (syntax-parse stx
+    ((_mk-env expression)
+
+     (define id-syntax
+       (map (lambda (datum)
+              (format-id #'expression "~a" datum))
+            (get-ids)))
+     (displayln id-syntax)
+     (define vals
+       '(4 5 6))
+     (with-syntax (((ids ...) id-syntax)
+                   ((n-vals ...) vals))
+       #`(let ((ids n-vals) ...)
+           expression)))))
+
+
+(require syntax/parse)
+
+(define (stx-trans stx)
+  (syntax-parse stx
+    ((_ id)
+     #'id)))
