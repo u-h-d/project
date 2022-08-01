@@ -167,23 +167,23 @@
      #:with get-all-id (format-id #'name "~a-get-all" #'name)
      #'(begin
          (define bindings
-           (get-all-id))
-         (call-with-env name expression)))))
+           (hash->list (get-all-id)))
+         (displayln bindings)
+         (call-with-env name expression bindings)))))
 
 ; ugh, can't see 'bindings'
 (define-syntax (call-with-env stx)
   (syntax-parse stx
-    ((_call-with-env name expression)
-     (define env-bindings
-              bindings)
+    ((_call-with-env name expression bindings)
+     (displayln (syntax-local-value (datum->syntax #'name (syntax-e #'bindings))))
      (define n-ids
        (map (lambda (datum)
               (format-id #'expression "~a" (car datum)))
-            (hash->list env-bindings)))
+            (syntax->list #'bindings)))
      (define vals
        (map (lambda (datum)
               (cdr datum))
-            (hash->list env-bindings)))
+            (syntax->list #'bindings)))
      (displayln n-ids)
      (with-syntax (((nn-ids ...) n-ids)
                    ((n-vals ...) vals))

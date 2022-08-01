@@ -374,3 +374,31 @@
   (syntax-parse stx
     ((_ id)
      #'id)))
+
+(module t2 racket
+
+  (provide ent)
+  
+  (define ent
+    (let ((a 4))
+      (lambda (cmd)
+        (match cmd
+          ('(get) a)
+          (`(set ,v)
+           (set! a v)))))))
+
+(require 't2
+         (for-syntax 't2))
+
+
+(define-syntax (with-env stx)
+  (syntax-parse stx
+    ((_with-env e)
+
+     #`(let #,(with-syntax ((n-id (format-id #'e "~a" 'a))
+                            (n-val (ent '(get))))
+                #'((n-id n-val)))
+                     
+           e))))
+
+; could try just having 'get-all' return properly formatted datum and then using quasi to build an expression and 'eval'ing it
