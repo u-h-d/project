@@ -1,0 +1,56 @@
+
+(define-syntax (mk-wkshp stx)
+  (syntax-parse stx
+    ((_mk-wkshp name)
+     #:with wkshp-id (format-id #'name "~a-wkshp" #'name)
+     #:with get-all-id (format-id #'name "~a-get-all" #'name)
+     #'(define-syntax (wkshp-id stx)
+         (syntax-parse stx
+           ((_wkshp-id expression)
+            (define bindings
+              (get-all-id))
+            (define n-ids
+              (map (lambda (datum)
+                     (format-id #'expression "~a" (car datum)))
+                   (hash->list bindings)))
+            (define vals
+              (map (lambda (datum)
+                     (cdr datum))
+                   (hash->list bindings)))
+            (displayln n-ids)
+            (with-syntax (((nn-ids (... ...)) n-ids)
+                          ((n-vals (... ...)) vals))
+              #'(let ((nn-ids n-vals) (... ...))
+                  expression))))))))
+
+; works, but problem now is how to accomodate updating the entity environment?
+
+(define-syntax (wkshp2 stx)
+  (syntax-parse stx
+    ((_wkshp name expression)
+     #:with wkshp-id (format-id #'name "~a-wkshp" #'name)
+     #:with get-all-id (format-id #'name "~a-get-all" #'name)
+     #'(begin
+         (define bindings
+           (hash->list (get-all-id)))
+         (displayln bindings)
+         (call-with-env name expression bindings)))))
+
+; ugh, can't see 'bindings'
+(define-syntax (call-with-env stx)
+  (syntax-parse stx
+    ((_call-with-env name expression bindings)
+     (displayln (syntax-local-value (datum->syntax #'name (syntax-e #'bindings))))
+     (define n-ids
+       (map (lambda (datum)
+              (format-id #'expression "~a" (car datum)))
+            (syntax->list #'bindings)))
+     (define vals
+       (map (lambda (datum)
+              (cdr datum))
+            (syntax->list #'bindings)))
+     (displayln n-ids)
+     (with-syntax (((nn-ids ...) n-ids)
+                   ((n-vals ...) vals))
+       #'(let ((nn-ids n-vals) ...)
+           expression)))))

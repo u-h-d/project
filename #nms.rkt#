@@ -437,7 +437,12 @@
             ((s lst))
     (string-append accstr s)))
 
-
+#; ; wrapping won't work... looks all the way in 
 (define (wrap)
   (lambda ()
     random-id))
+
+(define-syntax (wrap stx)
+  (syntax-parse stx
+    ((_wrap proc)
+     #'

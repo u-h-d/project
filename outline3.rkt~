@@ -1,0 +1,40 @@
+#lang racket
+
+(require (for-syntax syntax/parse racket/syntax))
+
+
+(module above racket
+
+  (define-syntax (mk-entity stx)
+    ((_mk-entity name)
+
+     #:with pvt-name (format-id #'name "~a/~a" (syntax-e #'name) (gensym))
+
+     #'(begin
+
+         (define pvt-name
+
+           (let ((components (make-hash
+                              ((a . 4)
+                               (b . 3)
+                               (input-hooks '())
+                               (output-hooks '())
+                               (controller (lambda (cmd)
+                                             'controller))))))
+
+             (lambda (cmd)
+
+               (case (car cmd)
+                 ((set) (hash-set! components (second cmd) (third cmd)))
+                 ((get) (hash-ref components (second cmd)))
+                 ((run) ((hash-ref components 'controller) (second cmd)))))))
+
+         (define-syntax-rule (name (arg ...))
+           (name '(arg ...)))))))
+
+(require 'above
+         (for-syntax 'above))
+
+            
+
+            

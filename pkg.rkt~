@@ -1,0 +1,99 @@
+#lang racket
+
+(define (run-hooks hooks input)
+  (for ((hook hooks))
+    (hook input)))
+
+(define (mk-e)
+
+  (let ((components (make-hash))
+        (controller (lambda (input)
+                      input))
+        (input-hooks '())
+        (output-hooks '()))
+
+    (lambda (cmd)
+
+      (case (car cmd)
+
+        ((set)
+         (begin
+           (displayln 'new-component)
+           (hash-set! components (cadr cmd) (caddr cmd))))
+        ((get)
+         (hash-ref components (cadr cmd)))
+        ((set-controller)
+         (set! controller (cadr cmd)))
+        ((get-controller) controller)
+        ((get-ihooks) input-hooks)
+        ((get-ohooks) output-hooks)
+        ((set-input-hook)
+         (set! input-hooks (cons (cadr cmd) input-hooks)))
+        ((set-output-hook)
+          (set! output-hooks (cons (cadr cmd) output-hooks)))
+        
+        ((run)
+         (begin
+           (define arg (cadr cmd))
+           (run-hooks input-hooks arg)
+           (define result (controller arg))
+           (run-hooks output-hooks result)
+           result))))))
+
+
+#;(define (mk-all lst)
+
+  (define (m-rec lst)
+      
+    (if (null? lst)
+        'DONE
+        
+        (match lst
+          ((list id subs ...)
+           (begin
+             (printf "Making entity: ~a\n" id)
+        
+             (let ((sub-e (get-subs subs)))
+               (if (null? sub-e)
+                   (displayln "No components to install...")
+                   (let ((new-e (mk-e)))
+                     (for ((sub (get-subs subs)))
+                       (printf "Installing component: ~a\n" sub)
+                       (new-e `(set sub (mk-e))))
+             (for ((sub subs))
+               (m-rec sub))))))))))
+
+  (m-rec lst))
+
+
+(define q
+  '(zh4
+    (subc1 (dd1 (sdd6)) (dd2))
+    (subc2 (dd3))
+    (subc3 (dd4 (sdd7)))))
+
+
+(define z
+  (mk-e))
+
+
+;mk new and pass w/ subs -> for each sub, install result of recurring w/ mk new and ITS subs -> when no subs, return
+
+(define (ma lst)
+
+  (define (ma-rec parent lst)
+    
+    (for ((sub lst))
+      (begin
+        (parent `(set ,(car sub) ,(ma-rec (mk-e) (cdr sub))))))
+
+    parent)
+    
+  (ma-rec (mk-e) (cdr lst)))
+
+(define (print-e e)
+
+  (define (p-rec parent level)
+    ())
+
+  (printf "TOP\n~a" (p-rec)))
