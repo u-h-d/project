@@ -1,5 +1,12 @@
 #lang racket
 
+(require (for-syntax syntax/parse racket/syntax))
+
+(struct hook (name tags proc) #:mutable)
+
+(provide (all-defined-out))
+
+
 (define (run-hooks hooks input)
   (for ((hook hooks))
     (let ((proc (hook-proc hook)))
@@ -8,6 +15,7 @@
 (define (mk-e (name #f))
 
   (let ((components (make-hash))
+        (agents (make-hash))
         (controller (lambda (input)
                       input))
         (input-hooks '())
@@ -27,6 +35,8 @@
         ((get-all) components)
         ((set-controller)
          (set! controller (cadr cmd)))
+        ((set-agent)
+         (hash-set! agents (cadr cmd (caddr cmd))))
         ((get-controller) controller)
         ((get-ihooks) input-hooks)
         ((get-ohooks) output-hooks)
@@ -87,20 +97,43 @@
 
   (printf "TOP\n~a" (p-rec e 0)))
 
-(define (install-all e hook)
+(define (install-all e hook-template)
+
+  (define init-proc ((caddr hook-template) e))
+
+  (define init-hook (hook (car hook-template)
+                          (cadr hook-template)
+                          init-proc))
 
   (define comp-keys (hash-keys (e '(get-all))))
-
+  (displayln comp-keys)
+  
   (cond
     ((null? comp-keys)
-     (e `(set-input-hook ,hook)))
+     (begin
+       (e `(set-input-hook ,init-hook))
+       (e `(set-output-hook ,init-hook))))
     (else
      (begin
-       (e `(set-input-hook ,hook))
+       (e `(set-input-hook ,init-hook))
+       (e `(set-output-hook ,init-hook))
        (for ((key comp-keys))
          (let ((nxt-e (e `(get ,key))))
            (install-all
-            nxt-e  hook)))))))
+            nxt-e hook-template)))))))
+
+; contr data will be
+; this works and is simpler than what is in 'outline3'... hmmm
+(define-syntax (install-contr stx)
+  (syntax-parse stx
+    ((_install-contr entity (comp ...) body)
+
+     #:with (comp-id ...) (map (lambda (datum)
+                                        (format-id #'entity "~a" (syntax-e datum)))
+                                      (syntax->list #'(comp ...)))
+
+       #'(let ((comp-id (entity '(get comp-id))) ...)
+           body))))
 
 (define (dummy-hook cmd)
   'here)
@@ -115,28 +148,31 @@
 ;; hook could be a struct...
 ;; hook seed can also be a lambda that takes the entity and builds and returns the actual hook...
 
-(struct hook (name tags proc) #:mutable)
-
 (define basic
-  (hook 'basic '() (lambda (entity)
-                     (lambda (arg)
-                       (let ((name (entity '(get-name))))
-                         (printf "~a's basic hook is passing through: ~a\n" name arg))))))
+  `(
+   'basic
+   ()
+   ,(lambda (entity)
+      (lambda (arg)
+        (let ((name (entity '(get-name))))
+          (printf "~a's basic hook is passing through: ~a\n" name arg))))))
   
                            
+; !! REMBMER the idea about a meta-entity that maintains a list of packages and the types assoc therewith
+; for auto updating and smart installing...
 
 ; install-hooks can be told in/out/both, single, all or so many layers
 (define (install-hook e hook w?)
 
   ; init hook proc by passing entity and setting proc to result
   (set-hook-proc!
-   ((hook-proc hook) e))
+   hook ((hook-proc hook) e))
   
   (case w?
     ((in)
-     (e `(set-input-hook ,(hook e))))
+     (e `(set-input-hook ,hook)))
     ((out)
-     (e `(set-output-hook ,(hook e))))
+     (e `(set-output-hook ,hook)))
     ((both)
      (e `(set-input-hook ,hook))
      (e `(set-output-hook ,hook)))))
@@ -144,6 +180,7 @@
 ; might want a 'crawl-all' proc ->
 
 (define (crawl-e e proc)
+  (displayln e)
   (begin
     (proc e)
     (let ((comps (hash-keys (e '(get-all)))))
@@ -151,5 +188,29 @@
           'DONE
           (for ((comp comps))
             (let ((nxt-e (e `(get ,comp))))
+              (displayln nxt-e)
               (crawl-e nxt-e proc)))))))
 
+(define (tproc e)
+  (displayln (e '(get-name))))
+
+(define (install-plugin entity plug-in)
+  (crawl-e entity plug-in))
+
+; a plug in is a function that takes an entity and installs itself
+; 'draw' could either be a "manager" or "agent" or an encompassing entity...
+
+(define (draw-plug-in entity)
+
+  (define (draw-agent)
+    'draw-agent)
+  ; need canvas
+  (begin
+    (entity '(set-agent))))
+
+;; !! maybe controller is a thunk ->
+;; (lambda ()
+;;    (lambda (comp1 comp2)
+;;         ...
+;;     )
+;;  ((hash-ref 'comp1 components) (hash-ref 'comp2 components)))

@@ -54,3 +54,18 @@
                    ((n-vals ...) vals))
        #'(let ((nn-ids n-vals) ...)
            expression)))))
+
+
+  ;; 
+  (define-syntax (mk-entity stx)
+    (syntax-parse stx
+      ((_mk-entity e-name)
+
+       #:with pvt-name (format-id #'e-name "~a/~a" (syntax-e #'e-name) (gensym)) ; not sure if needed
+       #:with closure-id (format-id #'e-name "e-~a" (syntax-e #'e-name))
+
+       #'(begin
+
+           ; define entity-closure w/ private-name
+           ; we link to this w/ macro (below)
+           (define pvt-name

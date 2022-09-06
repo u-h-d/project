@@ -33,14 +33,14 @@
        (define let-bindings
          (for/list ((c components))
            (with-syntax ((comp-id (format-id #'name "~a" (syntax-e c)))
-                         (cmd-id (format-id #'name "~a" 'cmd)))
+                         (cmd-id (format-id #'name "~a" 'cmd))) ; remember, this an id'r we'll parameterize to match any 'cmd' in body
              (displayln c)
              #'(comp-id (name get comp-id)))))
        
        #`(let ((ctlr 
-                (lambda (cmd-id)
+                (lambda (cmd-id) ; cmd-id had to be made bc any identifier we introduce has to be properly made
                   (let #,let-bindings
-                      (syntax-parameterize ((cmd (make-rename-transformer  #'cmd-id)))
+                      (syntax-parameterize ((cmd (make-rename-transformer  #'cmd-id))) ; do this to link cmd-id to uses of 'cmd' in body
                         body)))))
            (name set-controller ctlr)))))
                   
@@ -75,11 +75,13 @@
                    ((set-controller) (set! controller (second cmd)))
                    ((get) (hash-ref components (second cmd)))
                    ((get-controller) controller)
+                   ; build an expression then 'eval'
                    ((run)
                     (eval
                      `(let ,(for/list ((key (hash-keys components)))
                               `(,key ,(hash-ref components key)))
                           ,controller)))
+                   ; 
                    ((run2) (controller (cadr cmd)))))))
 
            (define-syntax name 

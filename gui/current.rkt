@@ -6,7 +6,10 @@
 (define fr (new frame% (label "hello")))
 
 (define c0 (new canvas% (parent fr)
-                (paint-callback
+                #;(paint-callback
+                 (lambda (canvas dc)
+                   (dcd)))
+                #;(paint-callback
                  (lambda (canvas dc)
                    (draw
                     (init-w/dc
@@ -245,52 +248,8 @@
   (list t-space 2-space))
 
 
-
-; COMP -> '(name (list sub-comps))
-
-
-; take a name, intitial space, and list of entities
-; a component will be a list-of: named subcomponents, which themselves are composed of sub-components
-#;
-(define (mk-mspace comp init-space)
-  
-  (define (mms-rec name comps flag)
-
-    (define n (length comps))
-    (define s1 (if (even? n)
-                      (/ n 2)
-                      (truncate (/ n 2))))
-    (define s2 (- n s1))
-    (define s1-comps (take comps s1))
-    (define s2-comps (list-tail comps s1))
-    (define s1-scale (/ 1 s1))
-    (define s2-scale (/ 1 s2))
-
-    
-                       
-    (case flag
-      ((up)
-       `((1 1) (center center)
-               (((.4 .9) (left bottom) (,@(for/list ((sub-comp s1-comps))
-                                             `((s1 1) (left top)
-                                                      (mms-rec (car sub-comp) (cadr sub-comp) 'right))))))
-                 ((.4 .9) (right bottom) ())
-                 ((.1 .05) (top right)) ()))
-      ((down)
-       (mk-space flag))
-      ((right)
-       (mk-space flag))
-      ((left)
-       (mk-space flag))))
-    
-    
-  
-    (cond
-      ((null? lo-comp) 'ERROR) 
-      (else
-       (mms-rec (car comp) (cadr comp) init-space))))
-
 ; example
+; takes tree of entity id's and applies this layout to each
 (define (init-e-spaces ent)
 
   (define (e-spaces name comps flag)
@@ -308,7 +267,7 @@
                          (/ 1 s2))))
 
       ;(printf "s1: ~a\ns2: ~a\ns1-scale: ~a\ns2-scale: ~a\n" s1 s2 s1-scale s2-scale)
-    
+      ; building a list of the total layout ->
       `(((.4 .9) (left bottom)
                  (,@(if (not (null? comps))
                         (for/list ((sub s1-comps)
@@ -373,6 +332,8 @@
               (draw-proc nxt dc)
               (draw-proc (cdr procs) dc))))))
 
+(draw-proc (wrap-all b) dc)
+
 ; works to...
 (define (fedp procs dc)
   
@@ -389,6 +350,8 @@
 
 (define f (make-font #:size 2))
 
+
+; is this an attempt at ...?
 (define (space coords dc)
   
   (let ((x0 (first coords))
@@ -396,55 +359,67 @@
         (w (third coords))
         (h (fourth coords))
         (dc dc)
-        (f #f)
+        (draw-proc #f)
         (lst-translations #f)
         (path-counter #f)
         (path #f))
 
        
     (lambda (cmd)
-      (displayln "hi")
+      
+  ;    (displayln "hi")
+   ;   (displayln cmd)
+    ;  (displayln (car cmd))
       (if path-counter
           ; if active path, translate
           ; might need separate function that keeps/manages paths/translations
+          ; if we have an active path-counter, calc our current x and y ->
           (let ((new-x0 (+ (* (car path-counter) (car path)) x0))
                 (new-y0 (+ (* (car path-counter) (second path)) y0)))
+            
             (begin0
-              (case (car cmd)
-                ((f) (set! f (cadr cmd)))
-                ((p) (set! path (cadr cmd)))
-                ((dump)
-                 `(,new-x0 ,new-y0 ,w ,h ,dc ,f ,lst-translations ,path-counter ,path))
-                ((dp)
-               ((cadr cmd) new-x0 new-y0 w h dc))
-                ((d)
-                 (f new-x0 new-y0 w h dc))
-                ((path)
-                 (set! path-counter (build-list (car (second cmd)) values))
-                 (set! path (cadr cmd)))
-                (else
-                 'ERROR))
-              (set! path-counter (cdr path-counter))))
-          
+ ;               (printf "inside path branch: \n" )
+                (case (car cmd)
+
+                  ((set-proc) (set! draw-proc (cadr cmd)))
+                  ((new-path) (set! path (cadr cmd)))
+                  ((dump)
+                   `(,new-x0 ,new-y0 ,w ,h ,dc ,draw-proc ,lst-translations ,path-counter ,path))
+                  ; apparently this is for if we want to pass a custom drawing procedure to this space?
+                  ((dp)
+                   ((cadr cmd) new-x0 new-y0 w h dc))
+                  ((draw)
+                   (draw-proc new-x0 new-y0 w h dc))
+                  ((path)
+                   (set! path-counter (build-list (car (second cmd)) values))
+                   (set! path (cadr cmd)))
+                  (else
+                   'ERROR))
+              ; move path-counter to next ->
+                (set! path-counter (cdr path-counter))))
+          (begin
+;          (printf "inside no-path branch: \n" )
           (case (car cmd)
-            ((f) (set! f (cadr cmd)))
-            ((p) (set! path (cadr cmd)))
+            ((set-proc) (set! draw-proc (cadr cmd)))
+            ((new-path) (set! path (cadr cmd)))
             ((dump)
-             `(,x0 ,y0 ,w ,h ,dc ,f ,lst-translations ,path-counter ,path))
+             `(,x0 ,y0 ,w ,h ,dc ,draw-proc ,lst-translations ,path-counter ,path))
             ((dp)
              ((cadr cmd) x0 y0 w h dc))
-            ((d)
-             (f x0 y0 w h dc))
+            ((draw)
+             (draw-proc x0 y0 w h dc))
             ((path)
              (set! path-counter (build-list (car (second cmd)) values))
              (set! path (second (cadr cmd))))
             (else
-             'ERROR))))))
+             'ERROR)))))))
   
 
 (define (drect x y w h dc)
+  (sleep 0.1)
   (send dc draw-rectangle x y w h))
 (define (dt x y w h dc)
+  (sleep 0.05)
   (send dc draw-text "hello" (+ x 5) (+ y 5)))
 
 (define c
@@ -457,8 +432,15 @@
         (displayln (car lst))
         (set! lst (cdr lst))))))
 
-(c '(path (10 (10 0))))
-(c `(f ,drect))
+(c '(path (500 (2 0))))
+(c `(set-proc ,drect))
+
+(define (dcd)
+  (define (draw dc)
+    (c '(draw)))
+  (for ((i 500))
+    (sleep 0.0000005)
+    (send c0 refresh-now draw)))
 
 
           
